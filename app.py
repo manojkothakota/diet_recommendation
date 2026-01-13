@@ -8,7 +8,7 @@ import random, os, requests
 st.set_page_config("AI Diet Planner","🥗")
 st.title("🥗 Autonomous AI Clinical Diet Planner")
 
-df=pd.read_csv(r"D:\sem-4\dietrecommendation\data\clean_recipes_10k.csv")
+df=pd.read_csv("clean_recipes_10k.csv")
 print(df.head())
 print(df.shape)
 NUTRIENTS = ['Calories','FatContent','SaturatedFatContent','CholesterolContent',
@@ -88,3 +88,4 @@ if st.button("Generate My AI Diet Plan"):
         st.write(f"Calories: {int(r['Calories'])} kcal")
         st.write(f"Protein: {r['ProteinContent']}g | Fat: {r['FatContent']}g | Sugar: {r['SugarContent']}g")
         st.caption(r['RecipeInstructions'])
+
