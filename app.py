@@ -1,16 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import NearestNeighbors
 import random, os, requests
 
 st.set_page_config("AI Diet Planner","🥗")
 st.title("🥗 Autonomous AI Clinical Diet Planner")
 
-df=pd.read_csv("clean_recipes_10k.csv")
-print(df.head())
-print(df.shape)
+df = pd.read_csv("clean_recipes_10k.csv")
+
+# ---------------- Nutrient Columns ----------------
 NUTRIENTS = ['Calories','FatContent','SaturatedFatContent','CholesterolContent',
              'SodiumContent','CarbohydrateContent','FiberContent','SugarContent','ProteinContent']
 
@@ -23,24 +21,19 @@ MOTIVATION = {
     "Fitness": ["Strong body starts with smart food.","Champions eat smart."]
 }
 
-# ---------------- Groq AI Motivation ----------------
+# ---------------- Groq Motivation ----------------
 def groq_motivation(disease):
     try:
-        headers = {"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}",
-                   "Content-Type": "application/json"}
-        prompt = f"Give one motivational health message for a {disease} patient."
-        data = {"model":"llama3-8b-8192","messages":[{"role":"user","content":prompt}]}
+        headers = {"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}","Content-Type": "application/json"}
+        data = {"model":"llama3-8b-8192","messages":[{"role":"user","content":f"Give one motivational message for {disease} patient"}]}
         r = requests.post("https://api.groq.com/openai/v1/chat/completions",json=data,headers=headers)
         return r.json()['choices'][0]['message']['content']
     except:
         return random.choice(MOTIVATION[disease])
 
-# ---------------- Calorie AI ----------------
+# ---------------- Calorie Brain ----------------
 def calculate_calories(age, gender, weight, height, goal):
-    if gender=="Male":
-        bmr = 88.36 + 13.4*weight + 4.8*height - 5.7*age
-    else:
-        bmr = 447.6 + 9.2*weight + 3.1*height - 4.3*age
+    bmr = 88.36 + 13.4*weight + 4.8*height - 5.7*age if gender=="Male" else 447.6 + 9.2*weight + 3.1*height - 4.3*age
     if goal=="Lose Weight": bmr*=0.8
     elif goal=="Gain Weight": bmr*=1.2
     return int(bmr)
@@ -54,17 +47,23 @@ DISEASE_RULES = {
     "Fitness":[40,40,2000,300]
 }
 
-# ---------------- ML Recommender ----------------
+# ---------------- AI Engine ----------------
+def normalize(x):
+    return (x - x.mean(axis=0)) / (x.std(axis=0) + 1e-9)
+
+def cosine(a,b):
+    return np.dot(a,b) / (np.linalg.norm(a)*np.linalg.norm(b))
+
 def recommend(df,target,disease):
     fat,sugar,sodium,chol = DISEASE_RULES[disease]
     data = df[(df.FatContent<=fat)&(df.SugarContent<=sugar)&
               (df.SodiumContent<=sodium)&(df.CholesterolContent<=chol)]
-    scaler = StandardScaler()
-    X = scaler.fit_transform(data[NUTRIENTS])
-    model = NearestNeighbors(metric="cosine")
-    model.fit(X)
-    idx = model.kneighbors(scaler.transform([target]),4,return_distance=False)[0]
-    return data.iloc[idx]
+    if len(data) < 4: data = df.copy()
+    X = normalize(data[NUTRIENTS].values.astype(float))
+    t = normalize(np.array(target).reshape(1,-1))[0]
+    scores = [cosine(t,row) for row in X]
+    best = np.argsort(scores)[-4:]
+    return data.iloc[best]
 
 # ---------------- UI ----------------
 age = st.number_input("Age",10,100,25)
@@ -76,7 +75,7 @@ disease = st.selectbox("Health Condition",list(DISEASE_RULES.keys()))
 
 if st.button("Generate My AI Diet Plan"):
     calories = calculate_calories(age,gender,weight,height,goal)
-    st.success(f"🔥 Your AI-calculated daily calories: {calories} kcal")
+    st.success(f"🔥 Your daily AI calories: {calories} kcal")
     st.info("💡 "+groq_motivation(disease))
 
     target = [calories,30,10,150,1500,250,30,25,100]
@@ -88,4 +87,3 @@ if st.button("Generate My AI Diet Plan"):
         st.write(f"Calories: {int(r['Calories'])} kcal")
         st.write(f"Protein: {r['ProteinContent']}g | Fat: {r['FatContent']}g | Sugar: {r['SugarContent']}g")
         st.caption(r['RecipeInstructions'])
-
